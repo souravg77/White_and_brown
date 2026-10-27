@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentinel-ai"
+version = "0.1.0"
+description = "Scoped security auditing engine for authorized assets, built for Kali Linux"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Not yet chosen" }
+
+# The security-critical core (config, scope, modes, audit) uses only the
+# standard library. Everything with a third-party dependency is an optional
+# extra, so the trust path for scope decisions has no external packages.
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Persistence (phase 2): SQLite by default for the single-operator desktop build.
+db = ["sqlalchemy>=2.0", "alembic>=1.13"]
+# Optional localhost control API for headless/scripted use.
+api = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2.6"]
+# Kali desktop UI.
+desktop = ["PySide6>=6.6"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+sentinel = "sentinel.cli:main"
+
+[project.gui-scripts]
+sentinel-desktop = "desktop.main:main"
+
+[tool.setuptools]
+packages = ["sentinel", "desktop", "sentinel.policy", "sentinel.scanners", "sentinel.verification", "sentinel.notifications", "sentinel.db", "sentinel.api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

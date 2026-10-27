@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SENTINEL AI
+Comment=Scoped security auditing for authorized assets
+Exec=sentinel-desktop
+Icon=sentinel-ai
+Terminal=false
+Categories=Security;System;

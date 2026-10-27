@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+# Local, environment-specific config — never commit real targets or secrets.
+config/targets.yaml
+*.env
+*.sqlite
+*.sqlite3
