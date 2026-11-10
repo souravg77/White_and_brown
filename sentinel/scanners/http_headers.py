@@ -60,6 +60,7 @@ def parse_headers(headers: dict[str, str], asset: str) -> list[Finding]:
                     remediation=remediation,
                     confidence=0.9,
                     status="observed",
+                    check_key=header,
                 )
             )
     return findings

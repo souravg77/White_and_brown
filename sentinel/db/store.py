@@ -191,7 +191,8 @@ class SqliteStore:
         """Insert a finding or update the existing one with the same fingerprint.
 
         Returns ``"new"`` or ``"updated"`` so the caller knows whether to raise a
-        new-finding notification.
+        new-finding notification. On update the verification status and
+        confidence are left alone: only the verification pipeline changes them.
         """
         now = _utcnow_iso()
         existing = self._conn.execute(
@@ -201,24 +202,56 @@ class SqliteStore:
             self._conn.execute(
                 "INSERT INTO findings(scan_id, fingerprint, asset, source_tool, title,"
                 " severity, status, confidence, evidence_summary, remediation,"
-                " first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                " check_key, first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     scan_id, fingerprint, finding.asset, finding.source_tool,
                     finding.title, finding.severity, finding.status,
                     finding.confidence, finding.evidence_summary,
-                    finding.remediation, now, now,
+                    finding.remediation, finding.check_key, now, now,
                 ),
             )
             return "new"
         self._conn.execute(
-            "UPDATE findings SET scan_id=?, severity=?, status=?, confidence=?,"
-            " evidence_summary=?, remediation=?, last_seen=? WHERE fingerprint=?",
+            "UPDATE findings SET scan_id=?, severity=?, evidence_summary=?,"
+            " remediation=?, last_seen=? WHERE fingerprint=?",
             (
-                scan_id, finding.severity, finding.status, finding.confidence,
-                finding.evidence_summary, finding.remediation, now, fingerprint,
+                scan_id, finding.severity, finding.evidence_summary,
+                finding.remediation, now, fingerprint,
             ),
         )
         return "updated"
+
+    def get_finding(self, fingerprint: str) -> sqlite3.Row | None:
+        return self._conn.execute(
+            "SELECT * FROM findings WHERE fingerprint=?", (fingerprint,)
+        ).fetchone()
+
+    def set_finding_status(
+        self, fingerprint: str, status: str, confidence: float
+    ) -> str | None:
+        """Set a finding's verification status; returns the previous status."""
+        row = self.get_finding(fingerprint)
+        if row is None:
+            return None
+        self._conn.execute(
+            "UPDATE findings SET status=?, confidence=? WHERE fingerprint=?",
+            (status, confidence, fingerprint),
+        )
+        return row["status"]
+
+    def record_verification(
+        self, fingerprint: str, scan_id: str, verifier: str, outcome: str, evidence: str
+    ) -> None:
+        self._conn.execute(
+            "INSERT INTO verifications(fingerprint, scan_id, verifier, outcome,"
+            " evidence, attempted_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (fingerprint, scan_id, verifier, outcome, evidence, _utcnow_iso()),
+        )
+
+    def verifications_for(self, fingerprint: str) -> list[sqlite3.Row]:
+        return self._conn.execute(
+            "SELECT * FROM verifications WHERE fingerprint=? ORDER BY id", (fingerprint,)
+        ).fetchall()
 
     def findings_for_scan(self, scan_id: str) -> list[sqlite3.Row]:
         return self._conn.execute(

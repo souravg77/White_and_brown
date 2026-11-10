@@ -41,6 +41,7 @@ def parse_ssh_audit(raw: str, asset: str) -> list[Finding]:
                 evidence_summary=str(cve.get("description", ""))[:500],
                 remediation="Upgrade OpenSSH to a fixed version.",
                 confidence=0.8,
+                check_key=str(cve.get("name", "")),
             )
         )
 
@@ -61,6 +62,7 @@ def parse_ssh_audit(raw: str, asset: str) -> list[Finding]:
                             evidence_summary=f"ssh-audit recommends to {action} {name}.",
                             remediation=f"{action} {name} in sshd_config.",
                             confidence=0.8,
+                            check_key=f"{algo_type}:{name}",
                         )
                     )
     return findings

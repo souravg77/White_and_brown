@@ -1,4 +1,7 @@
-"""Follow-up verification (phase 3): normalize, fingerprint, deduplicate and
-recheck supported findings with safe, repeatable evidence. A finding stays
-`unverified` until repeatable technical evidence supports it; model confidence
+"""Follow-up verification: normalize and redact findings, fingerprint them for
+deduplication, and recheck supported findings with safe, repeatable evidence.
+
+A finding is ``verified`` only when every recheck reproduces it, a
+``false_positive`` when every recheck contradicts it, and ``unverified``
+otherwise (mixed answers, errors, timeouts, or no verifier). Model confidence
 never verifies a finding."""

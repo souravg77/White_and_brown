@@ -73,4 +73,22 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX idx_outbox_undelivered ON notification_outbox(delivered_at);
         """,
     ),
+    (
+        2,
+        "follow-up verification",
+        """
+        ALTER TABLE findings ADD COLUMN check_key TEXT NOT NULL DEFAULT '';
+
+        CREATE TABLE verifications (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            fingerprint  TEXT NOT NULL REFERENCES findings(fingerprint),
+            scan_id      TEXT NOT NULL,
+            verifier     TEXT NOT NULL,
+            outcome      TEXT NOT NULL,
+            evidence     TEXT NOT NULL DEFAULT '',
+            attempted_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_verifications_fingerprint ON verifications(fingerprint);
+        """,
+    ),
 ]

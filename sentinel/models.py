@@ -62,6 +62,9 @@ class Finding:
     confidence: float = 0.0
     status: Status = "observed"
     first_seen: datetime = field(default_factory=_utcnow)
+    #: Structured discriminator (header name, testssl id, algorithm, address…)
+    #: used for fingerprinting and by follow-up verifiers. Never free text.
+    check_key: str = ""
 
     def __post_init__(self) -> None:
         if self.severity not in SEVERITIES:

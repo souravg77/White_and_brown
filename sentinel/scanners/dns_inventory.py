@@ -33,5 +33,6 @@ class DnsInventoryScanner(BaseScanner):
             remediation="Informational: confirm this address is an owned asset.",
             confidence=1.0,
             status="observed",
+            check_key=str(target.pinned_ip),
         )
         return ScanResult(tool="dns", outcome="completed", findings=[finding], exit_code=0)
