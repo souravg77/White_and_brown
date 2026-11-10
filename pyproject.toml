@@ -18,8 +18,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Persistence (phase 2): SQLite by default for the single-operator desktop build.
-db = ["sqlalchemy>=2.0", "alembic>=1.13"]
 # Optional localhost control API for headless/scripted use.
 api = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2.6"]
 # Kali desktop UI.
@@ -33,7 +31,7 @@ sentinel = "sentinel.cli:main"
 sentinel-desktop = "desktop.main:main"
 
 [tool.setuptools]
-packages = ["sentinel", "desktop", "sentinel.policy", "sentinel.scanners", "sentinel.verification", "sentinel.notifications", "sentinel.db", "sentinel.api"]
+packages = ["sentinel", "desktop", "sentinel.policy", "sentinel.scanners", "sentinel.verification", "sentinel.notifications", "sentinel.db", "sentinel.net", "sentinel.api"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

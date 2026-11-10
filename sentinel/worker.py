@@ -1,15 +1,10 @@
-"""Job worker (scaffolding).
+"""Job worker loop.
 
-Manual scans are queued and processed by a background worker. Following the
-design review, the queue is the database itself: jobs are claimed with
-``SELECT ... FOR UPDATE SKIP LOCKED`` (Postgres) or an equivalent atomic claim
-on SQLite, which avoids a separate broker for the single-host desktop build.
-
-Background execution exists to process *manually requested* jobs, verification,
-notifications and recovery. It never initiates new scans on its own.
-
-Phase 1 ships the entry point and the claim/lease contract; the real processing
-loop, retries and recovery land in later phases.
+Claims queued scans from the database and processes them through
+:class:`sentinel.service.ScanService`. Background execution exists to process
+*manually requested* jobs, verification and notifications — it never starts new
+scans on its own. The loop is cancellable and recovers on restart because scan
+state lives in the database, not in memory.
 """
 
 from __future__ import annotations
@@ -17,21 +12,40 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+from .config import Config
+from .db.store import SqliteStore
+from .modes import ModeManager
+from .service import ScanService
+
 
 @dataclass
 class WorkerConfig:
     poll_interval_seconds: float = 2.0
-    lease_seconds: int = 900
 
 
-def run(config: WorkerConfig | None = None) -> None:  # pragma: no cover
-    """Placeholder worker loop. Real claim/process/recover logic is phase 2+."""
-    config = config or WorkerConfig()
-    raise NotImplementedError(
-        "worker processing loop is implemented in phase 2 "
-        "(see docs/architecture.md and the roadmap)"
-    )
+def run(
+    config: Config,
+    store: SqliteStore,
+    *,
+    mode_manager: ModeManager | None = None,
+    worker_config: WorkerConfig | None = None,
+    stop=lambda: False,
+) -> None:
+    """Process queued scans until ``stop()`` returns True.
+
+    ``stop`` is injectable so the desktop app or a signal handler can end the
+    loop cleanly; tests pass a predicate that stops when the queue drains.
+    """
+    worker_config = worker_config or WorkerConfig()
+    service = ScanService(config, store, mode_manager)
+    while not stop():
+        summary = service.process_next()
+        if summary is None:
+            time.sleep(worker_config.poll_interval_seconds)
 
 
 if __name__ == "__main__":  # pragma: no cover
-    run()
+    raise SystemExit(
+        "Run the worker from the application entry point with a loaded config "
+        "and store; see sentinel.worker.run()."
+    )

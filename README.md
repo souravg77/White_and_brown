@@ -6,11 +6,12 @@ SENTINEL drives the security tools already installed in Kali behind a single
 scope and policy layer, verifies what they find with repeatable evidence, and
 keeps a hash-chained audit record of every scan, finding and failure.
 
-> **Status: phase 1 (scope and foundation).** The scope engine, dual-mode
-> capability model, audit chain, Kali tool detection, the scanner-adapter
-> contract and the desktop shell are in place and tested. Real scanner adapters,
-> the per-job network firewall and persistence land in phase 2. See
-> [docs/architecture.md](docs/architecture.md).
+> **Status: phase 2 in progress.** Phase 1 (scope engine, dual-mode capability
+> model, audit chain, Kali tool detection, adapter contract, desktop shell) is
+> complete. Phase 2 adds SQLite persistence and the database job queue, the
+> per-job egress-firewall design and ruleset generator, and the first low-risk
+> scanner adapters (DNS, HTTP headers, TLS, ssh-audit). Nmap/ZAP and the
+> dashboard follow. See [docs/architecture.md](docs/architecture.md).
 
 ## Principles
 

@@ -60,6 +60,45 @@ def _cmd_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_migrate(args: argparse.Namespace) -> int:
+    from .db import SqliteStore
+
+    store = SqliteStore(args.db)
+    version = store.migrate()
+    store.close()
+    print(f"database {args.db} at schema version {version}")
+    return 0
+
+
+def _cmd_scan(args: argparse.Namespace) -> int:
+    from .db import SqliteStore
+    from .errors import PolicyError
+    from .service import ScanService
+
+    cfg = load_config(args.config)
+    store = SqliteStore(args.db)
+    store.migrate()
+    service = ScanService(cfg, store)
+    try:
+        vt = service.request_scan(args.target, args.check, args.by)
+    except PolicyError as exc:
+        print(f"REJECTED: {exc}")
+        store.close()
+        return 1
+    print(f"queued scan {vt.scan_id} ({vt.hostname} -> {vt.pinned_ip}, mode={vt.mode})")
+    summary = service.process_next()
+    store.close()
+    if summary is None:
+        print("nothing to process")
+        return 1
+    print(
+        f"scan {summary['state']}: tool={summary['tool']} "
+        f"findings={summary['findings']} new={summary['new']}"
+        + (f" error={summary['error']}" if summary.get("error") else "")
+    )
+    return 0 if summary["state"] in ("completed", "partial") else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sentinel", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -78,6 +117,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_check.add_argument("check")
     p_check.add_argument("-c", "--config", default="config/targets.yaml", type=Path)
     p_check.set_defaults(func=_cmd_check)
+
+    p_migrate = sub.add_parser("migrate", help="create or upgrade the database")
+    p_migrate.add_argument("--db", default="sentinel.sqlite3", type=Path)
+    p_migrate.set_defaults(func=_cmd_migrate)
+
+    p_scan = sub.add_parser("scan", help="request and process one scan")
+    p_scan.add_argument("target")
+    p_scan.add_argument("check")
+    p_scan.add_argument("-c", "--config", default="config/targets.yaml", type=Path)
+    p_scan.add_argument("--db", default="sentinel.sqlite3", type=Path)
+    p_scan.add_argument("--by", default="operator", help="who requested the scan")
+    p_scan.set_defaults(func=_cmd_scan)
 
     return parser
 

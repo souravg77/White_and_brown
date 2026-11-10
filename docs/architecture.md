@@ -11,7 +11,7 @@ Desktop app (PySide6)  ── operator UI: targets, scan controls, findings, rep
         │                  (optional localhost FastAPI service for headless use)
 Scope & policy engine  ── allowlist, pinned DNS, authorization windows, modes,
         │                  address validation, redirect revalidation, rate limits
-Job orchestration      ── DB-backed queue (SELECT … FOR UPDATE SKIP LOCKED),
+Job orchestration      ── DB-backed queue (SQLite BEGIN IMMEDIATE atomic claim),
         │                  per-job network namespace + egress firewall, timeouts,
         │                  cancellation, recovery
 Scanner adapters       ── one per Kali tool; absolute path + fixed arg array;
@@ -49,8 +49,9 @@ makes its check `skipped`. Kali is Debian-based, so the desktop packaging
 `sentinel.models` depend only on the Python standard library. The security
 decisions — what is in scope, what is authorized, what mode applies, what the
 audit chain says — therefore have no third-party package in their trust path.
-Pydantic, SQLAlchemy, FastAPI and PySide6 are optional extras used by the API,
-persistence and desktop layers.
+Persistence uses the standard-library `sqlite3` module (single-operator desktop
+build), so even the data layer adds no third-party dependency. Pydantic, FastAPI
+and PySide6 are optional extras used by the API and desktop layers.
 
 ## Build order (phases)
 
