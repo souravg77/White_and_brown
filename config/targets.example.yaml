@@ -1,0 +1,47 @@
+# SENTINEL AI — example target policy (the allowlist).
+#
+# A host that is not described here cannot be scanned. The domain and IPs below
+# are documentation placeholders (RFC 5737 / RFC 3849 ranges). Replace them only
+# with assets you own or have explicit written permission to assess.
+#
+# Copy this file to config/targets.yaml and edit it.
+
+assessment:
+  mode: manual                 # scans are started by an operator, never on a timer
+  follow_up_verification: true # recheck supported findings with safe evidence
+  default_read_only: true
+
+limits:
+  max_concurrent_scans: 2
+  max_requests_per_second: 2
+  scan_timeout_seconds: 600
+  max_redirects: 3
+  max_output_bytes: 10485760   # 10 MiB cap on captured tool output
+
+targets:
+  - domain: security-lab.example
+    # Every resolved address of the domain must fall inside one of these CIDRs,
+    # or the scan is rejected before any tool runs.
+    authorized_cidrs:
+      - "203.0.113.10/32"
+    permitted_checks:
+      - dns
+      - http_headers
+      - tls
+      - web_baseline
+      - ssh_audit
+    # Required. "Public is not permission": reachability never authorizes a scan.
+    authorization:
+      owner: "Lab owner name"
+      reference: "signed-authorization-2026-11"
+      valid_from: 2026-11-01
+      valid_until: 2026-12-01
+    # Set true ONLY for an isolated internal lab whose authorized_cidrs are in
+    # private space. Loopback/private/link-local are blocked otherwise. Cloud
+    # metadata endpoints are blocked even then.
+    allow_private_lab: false
+
+notifications:
+  all_findings: true
+  scan_failures: true
+  verification_failures: true
