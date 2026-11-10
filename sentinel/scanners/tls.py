@@ -49,6 +49,7 @@ def parse_testssl(raw: str, asset: str) -> list[Finding]:
                 remediation=str(rec.get("cve", "") or "Review TLS configuration.")[:500],
                 confidence=0.85,
                 status="observed",
+                check_key=rec_id,
             )
         )
     return findings

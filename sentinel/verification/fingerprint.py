@@ -17,15 +17,14 @@ from ..models import Finding
 def fingerprint(finding: Finding, key: str = "") -> str:
     """Return a stable hex fingerprint for a finding.
 
-    ``key`` is an optional extra discriminator (e.g. a port, header name or
-    CVE id) for adapters that can produce several findings with the same title
-    on one asset.
+    ``key`` overrides ``finding.check_key``, the discriminator (port, header
+    name, CVE id) that separates findings sharing a title on one asset.
     """
     parts = [
         finding.asset.strip().lower(),
         finding.source_tool.strip().lower(),
         finding.title.strip().lower(),
-        key.strip().lower(),
+        (key or finding.check_key).strip().lower(),
     ]
     joined = "\x1f".join(parts)
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()

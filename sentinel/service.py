@@ -3,9 +3,10 @@
 ``request_scan`` validates scope up front and queues the job. ``process_next``
 claims the next job, **revalidates scope** before running anything (the roadmap
 requires scope to be rechecked before tools run), runs the adapter for the
-check, persists and deduplicates findings, writes audit entries and queues
-notifications. A scan that runs some work and fails elsewhere ends ``partial``,
-never a clean ``completed``.
+check, normalizes and redacts findings, persists and deduplicates them, then
+**revalidates scope again** and runs follow-up verification. It writes audit
+entries and queues notifications throughout. A scan that runs some work and
+fails elsewhere ends ``partial``, never a clean ``completed``.
 """
 
 from __future__ import annotations
@@ -20,7 +21,15 @@ from .modes import ModeManager
 from .policy import dns_validation
 from .policy.scope import ScopeEngine
 from .scanners.registry import get_scanner
+from .models import Finding
 from .verification.fingerprint import fingerprint
+from .verification.normalize import normalize_finding, redact
+from .verification.verify import (
+    UNVERIFIED,
+    Verifier,
+    default_verifiers,
+    verify_finding,
+)
 
 
 class ScanService:
@@ -31,12 +40,16 @@ class ScanService:
         mode_manager: ModeManager | None = None,
         *,
         resolver=dns_validation.resolve,
+        verifiers: dict[str, Verifier] | None = None,
+        verification_timeout: float = 30.0,
     ) -> None:
         self.config = config
         self.store = store
         self.modes = mode_manager or ModeManager()
         self.scope = ScopeEngine(config, self.modes)
         self.resolver = resolver
+        self.verifiers = verifiers if verifiers is not None else default_verifiers(resolver)
+        self.verification_timeout = verification_timeout
 
     def request_scan(
         self, target: str, check: str, requested_by: str, *, now: datetime | None = None
@@ -88,7 +101,9 @@ class ScanService:
 
         result = scanner.run(vt)
         new_findings = 0
-        for finding in result.findings:
+        persisted: list[tuple[str, Finding]] = []
+        for raw in result.findings:
+            finding = normalize_finding(raw)  # redact secrets before anything stores it
             fp = fingerprint(finding)
             if self.store.upsert_finding(scan_id, finding, fp) == "new":
                 new_findings += 1
@@ -96,6 +111,11 @@ class ScanService:
                     f"{scan_id}:{fp}", "finding.new",
                     {"scan_id": scan_id, "title": finding.title, "severity": finding.severity},
                 )
+            persisted.append((fp, finding))
+
+        verification: dict[str, int] = {}
+        if self.config.follow_up_verification and persisted:
+            verification = self._verify(scan_id, target, check, persisted, now=now)
 
         # Map adapter outcome to the scan's terminal state.
         state = {
@@ -120,4 +140,63 @@ class ScanService:
         return {
             "scan_id": scan_id, "state": state, "tool": result.tool,
             "findings": len(result.findings), "new": new_findings, "error": result.error,
+            "verification": verification,
         }
+
+    def _verify(
+        self,
+        scan_id: str,
+        target: str,
+        check: str,
+        persisted: list[tuple[str, Finding]],
+        *,
+        now: datetime | None,
+    ) -> dict[str, int]:
+        """Revalidate scope, then recheck each finding and record the outcome.
+
+        Returns a count of outcomes. If scope no longer holds, nothing is
+        rechecked: every finding is recorded unverified and a verification
+        failure is notified.
+        """
+        counts: dict[str, int] = {}
+        try:
+            vt = self.scope.validate_scan_request(
+                target, check, now=now, resolver=self.resolver
+            )
+        except PolicyError as exc:
+            reason = f"scope revalidation before verification failed: {exc}"
+            for fp, _finding in persisted:
+                self.store.set_finding_status(fp, UNVERIFIED, 0.5)
+                self.store.record_verification(fp, scan_id, "scope", UNVERIFIED, reason)
+            self.store.record_audit(
+                "verification.skipped", "worker", {"scan_id": scan_id, "reason": str(exc)}
+            )
+            self.store.enqueue_notification(
+                f"{scan_id}:verification:scope", "verification.failed",
+                {"scan_id": scan_id, "reason": reason},
+            )
+            return {UNVERIFIED: len(persisted)}
+
+        for fp, finding in persisted:
+            res = verify_finding(
+                finding, vt, self.verifiers, timeout=self.verification_timeout
+            )
+            evidence = redact(res.evidence)
+            previous = self.store.set_finding_status(fp, res.outcome, res.confidence)
+            self.store.record_verification(fp, scan_id, res.verifier, res.outcome, evidence)
+            counts[res.outcome] = counts.get(res.outcome, 0) + 1
+            if previous != res.outcome:
+                self.store.enqueue_notification(
+                    f"{scan_id}:{fp}:status:{res.outcome}", "finding.status_changed",
+                    {"scan_id": scan_id, "title": finding.title,
+                     "from": previous, "to": res.outcome},
+                )
+            if res.failed:
+                self.store.enqueue_notification(
+                    f"{scan_id}:{fp}:verification_failed", "verification.failed",
+                    {"scan_id": scan_id, "title": finding.title, "reason": evidence},
+                )
+        self.store.record_audit(
+            "verification.completed", "worker", {"scan_id": scan_id, **counts}
+        )
+        return counts

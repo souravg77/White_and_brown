@@ -55,11 +55,16 @@ and PySide6 are optional extras used by the API and desktop layers.
 
 ## Build order (phases)
 
-1. **Scope and foundation (this phase).** Config/allowlist, scope engine,
-   modes, audit chain, tool detection, adapter contract, tests.
-2. Per-job egress firewall + low-risk real adapters (DNS, headers, TLS, SSH),
-   SQLite persistence and migrations.
-3. Verification and deduplication.
+1. **Scope and foundation (done).** Config/allowlist, scope engine, modes,
+   audit chain, tool detection, adapter contract, tests.
+2. **Persistence and adapters (done).** Per-job egress ruleset generator,
+   low-risk real adapters (DNS, headers, TLS, SSH), SQLite persistence,
+   migrations and the job queue.
+3. **Verification (done).** Normalization and secret redaction before
+   persistence, fingerprint deduplication, and repeatable rechecks: a finding
+   is verified only if every recheck reproduces it, a false positive if every
+   recheck contradicts it, and unverified on mixed answers, errors, timeouts or
+   when no verifier exists. Scope is revalidated before rechecks run.
 4. Notification outbox with digest delivery — **MVP**.
 5. Nmap and ZAP in constrained namespaces; minimal dashboard behind a VPN.
 6. AI summaries, then advanced (Brown Hat) testing — each tested in the lab first.
